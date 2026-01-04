@@ -24,6 +24,8 @@ on:
 jobs:
   regression-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -36,8 +38,8 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Install Maven dependencies
-        run: mvn clean install -DskipTests
+#      - name: Install Maven dependencies
+#        run: mvn clean install -DskipTests
 
       - name: Run Regression Tests
         id: test_execution
@@ -77,32 +79,9 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         if: always()
         with:
-#          personal_token: ${{ secrets.GH_TOKEN }}
+          personal_token: ${{ secrets.GH_TOKEN }}
           publish_branch: gh-pages
           publish_dir: allure-history
-
-      - name: Generate Test Report Data
-        if: always()
-        id: report_data
-        run: |
-          # Parse test results
-          if [ -f "target/surefire-reports/testng-results.xml" ]; then
-            TOTAL_TESTS=$(grep -o 'tests="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*')
-            PASSED_TESTS=$(grep -o 'passed="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*')
-            FAILED_TESTS=$(grep -o 'failed="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*')
-            SKIPPED_TESTS=$(grep -o 'skipped="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*')
-          else
-            TOTAL_TESTS="0"
-            PASSED_TESTS="0"
-            FAILED_TESTS="0"
-            SKIPPED_TESTS="0"
-          fi
-          
-          echo "TOTAL_TESTS=${TOTAL_TESTS}" >> $GITHUB_OUTPUT
-          echo "PASSED_TESTS=${PASSED_TESTS}" >> $GITHUB_OUTPUT
-          echo "FAILED_TESTS=${FAILED_TESTS}" >> $GITHUB_OUTPUT
-          echo "SKIPPED_TESTS=${SKIPPED_TESTS}" >> $GITHUB_OUTPUT
-          echo "RUN_DATE=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
 
       - name: Send Email Notification
         if: always()
