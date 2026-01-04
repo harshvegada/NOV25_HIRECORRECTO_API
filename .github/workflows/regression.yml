@@ -36,9 +36,6 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Install Maven dependencies
-        run: mvn clean install -DskipTests
-
       - name: Run Regression Tests
         id: test_execution
         run: |
@@ -143,9 +140,10 @@ jobs:
           server_port: 465
           username: harshhpatel07@gmail.com
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: 'Regression Test Execution Report - ${{ github.event.inputs.test_xml_file }}'
+          subject: 'Regression Test Execution Report - ${{ github.event.inputs.test_xml_file }} (Env: ${{ github.event.inputs.environment }})'
           to: harshvegada1997@gmail.com,write2technocredits@gmail.com
           from: harshhpatel07@gmail.com
           html_body: true
           body: ${{ env.EMAIL_CONTENT }}
+          attachments: /tmp/email_body.html
 
