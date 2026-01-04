@@ -11,6 +11,16 @@ on:
           - testng.xml
           - src/test/resources/testng.xml
 
+      environment:
+        description: 'Select Environment to run tests against'
+        required: true
+        type: choice
+        options:
+          - qa
+          - stage
+          - dev
+        default: stage
+
 jobs:
   regression-test:
     runs-on: ubuntu-latest
@@ -34,7 +44,7 @@ jobs:
         run: |
           mvn clean test \
             -DxmlFile=${{ github.event.inputs.test_xml_file }} \
-            -Denvironment=prod \
+            -Denvironment=${{github.event.input.environment}} \
             -Dallure.results.directory=allure-results \
             || true
 
