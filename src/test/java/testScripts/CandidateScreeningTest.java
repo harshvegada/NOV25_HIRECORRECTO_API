@@ -67,7 +67,7 @@ public class CandidateScreeningTest {
 
         AudioService audioService = new AudioService();
         Response audioAnswerResponse = Allure.step("Submit Audio answer", () ->
-                audioService.submitAudioAnswer(audioQuestionID, experience, "C:\\Roche_Automation\\jmeter_Scripts\\questions\\AudioAnswer.mp3")
+                audioService.submitAudioAnswer(audioQuestionID, experience, "files/AudioAnswer.mp3")
         );
         Allure.step("Validate Audio answer response and schema", () -> {
             Assert.assertEquals(audioAnswerResponse.statusCode(), StatusCodes.STATUS_CODE_OK, "Expected HTTP 200 when submitting Audio answer");
@@ -85,7 +85,7 @@ public class CandidateScreeningTest {
 
         VideoServices videoServices = new VideoServices();
         Response videoAnswerResponse = Allure.step("Submit Video answer", () ->
-                videoServices.submitVideoAnswer(videoQuestionID, experience, "C:\\Roche_Automation\\jmeter_Scripts\\questions\\VideoAnswer.mp4")
+                videoServices.submitVideoAnswer(videoQuestionID, experience, "files/VideoAnswer.mp4")
         );
         Allure.step("Validate Video answer response and schema", () -> {
             Assert.assertEquals(videoAnswerResponse.statusCode(), StatusCodes.STATUS_CODE_OK, "Expected HTTP 200 when submitting Audio answer");
