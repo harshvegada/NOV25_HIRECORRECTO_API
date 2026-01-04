@@ -11,21 +11,9 @@ on:
           - testng.xml
           - src/test/resources/testng.xml
 
-      environment:
-        description: 'Select Environment to run tests against'
-        required: true
-        type: choice
-        options:
-          - qa
-          - stage
-          - dev
-        default: stage
-
 jobs:
   regression-test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout code
@@ -38,15 +26,15 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-#      - name: Install Maven dependencies
-#        run: mvn clean install -DskipTests
+      - name: Install Maven dependencies
+        run: mvn clean install -DskipTests
 
       - name: Run Regression Tests
         id: test_execution
         run: |
           mvn clean test \
-            -DxmlFile=${{ github.event.inputs.test_xml_file }} \
-            -Denvironment=${{github.event.input.environment}} \
+            -DsuiteXmlFile=${{ github.event.inputs.test_xml_file }} \
+            -Denvironment=prod \
             -Dallure.results.directory=allure-results \
             || true
 
@@ -83,130 +71,71 @@ jobs:
           publish_branch: gh-pages
           publish_dir: allure-history
 
+      - name: Generate Test Report Data
+        if: always()
+        id: report_data
+        run: |
+          # Parse test results
+          if [ -f "target/surefire-reports/testng-results.xml" ]; then
+            TOTAL_TESTS=$(grep -o 'tests="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*' || echo "0")
+            PASSED_TESTS=$(grep -o 'passed="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*' || echo "0")
+            FAILED_TESTS=$(grep -o 'failed="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*' || echo "0")
+            SKIPPED_TESTS=$(grep -o 'skipped="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*' || echo "0")
+          else
+            TOTAL_TESTS="0"
+            PASSED_TESTS="0"
+            FAILED_TESTS="0"
+            SKIPPED_TESTS="0"
+          fi
+          
+          echo "TOTAL_TESTS=${TOTAL_TESTS}" >> $GITHUB_OUTPUT
+          echo "PASSED_TESTS=${PASSED_TESTS}" >> $GITHUB_OUTPUT
+          echo "FAILED_TESTS=${FAILED_TESTS}" >> $GITHUB_OUTPUT
+          echo "SKIPPED_TESTS=${SKIPPED_TESTS}" >> $GITHUB_OUTPUT
+          echo "RUN_DATE=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
+
+      - name: Prepare Email Template
+        if: always()
+        id: email_template
+        run: |
+          # Read template file
+          TEMPLATE_FILE=".github/email-template.html"
+          EMAIL_BODY=$(cat "$TEMPLATE_FILE")
+          
+          # Replace template variables with actual values
+          EMAIL_BODY="${EMAIL_BODY//\{\{TEST_XML_FILE\}\}/${{ github.event.inputs.test_xml_file }}}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{RUN_DATE\}\}/${{ steps.report_data.outputs.RUN_DATE }}}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{REPOSITORY\}\}/${{ github.repository }}}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{BRANCH\}\}/${{ github.ref_name }}}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{COMMIT_SHA\}\}/${{ github.sha }}}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{TOTAL_TESTS\}\}/${{ steps.report_data.outputs.TOTAL_TESTS }}}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{PASSED_TESTS\}\}/${{ steps.report_data.outputs.PASSED_TESTS }}}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{FAILED_TESTS\}\}/${{ steps.report_data.outputs.FAILED_TESTS }}}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{SKIPPED_TESTS\}\}/${{ steps.report_data.outputs.SKIPPED_TESTS }}}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{WORKFLOW_URL\}\}/${{ github.server_url }}\/${{ github.repository }}\/actions\/runs\/${{ github.run_id }}}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{GITHUB_PAGES_URL\}\}/${{ github.server_url }}\/${{ github.repository }}\/deployments\/activity_log?environment=github-pages}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{ARTIFACTS_URL\}\}/${{ github.server_url }}\/${{ github.repository }}\/actions\/runs\/${{ github.run_id }}}"
+          EMAIL_BODY="${EMAIL_BODY//\{\{REPO_URL\}\}/${{ github.server_url }}\/${{ github.repository }}}"
+          
+          # Save to temporary file
+          echo "$EMAIL_BODY" > /tmp/email_body.html
+          
+          # Create output variable with file content
+          echo "EMAIL_CONTENT<<EOF" >> $GITHUB_ENV
+          cat /tmp/email_body.html >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
       - name: Send Email Notification
         if: always()
-        uses: hilarion5/send-mail@v1
+        uses: dawidd6/action-send-mail@v3
         with:
-          smtp-server: smtp.gmail.com
-          smtp-port: 465
-          smtp-secure: true
-          from-email: harshhpatel07@gmail.com
-          to-email: harshvegada1997@gmail.com,write2technocredits@gmail.com
+          server_address: smtp.gmail.com
+          server_port: 465
           username: harshhpatel07@gmail.com
           password: ${{ secrets.EMAIL_PASSWORD }}
           subject: 'Regression Test Execution Report - ${{ github.event.inputs.test_xml_file }}'
-          body: |
-            <html>
-              <head>
-                <style>
-                  body { font-family: Arial, sans-serif; background-color: #f5f5f5; }
-                  .container { max-width: 600px; margin: 20px auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                  .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center; }
-                  .header h1 { margin: 0; font-size: 24px; }
-                  .content { padding: 20px 0; }
-                  .summary { background-color: #f9f9f9; padding: 15px; border-left: 4px solid #667eea; margin: 15px 0; }
-                  .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
-                  .summary-row:last-child { border-bottom: none; }
-                  .label { font-weight: bold; color: #333; }
-                  .value { color: #666; }
-                  .metric { display: inline-block; width: 22%; text-align: center; padding: 15px; background-color: #f0f0f0; border-radius: 5px; margin: 5px 2%; }
-                  .metric-value { font-size: 28px; font-weight: bold; }
-                  .metric-label { font-size: 12px; color: #666; margin-top: 5px; }
-                  .status-pass { color: #27ae60; }
-                  .status-fail { color: #e74c3c; }
-                  .status-skip { color: #f39c12; }
-                  .footer { background-color: #f9f9f9; padding: 15px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; }
-                  .footer a { color: #667eea; text-decoration: none; }
-                  .details-section { margin: 20px 0; padding: 15px; background-color: #f9f9f9; border-radius: 5px; }
-                  .details-title { font-weight: bold; color: #333; margin-bottom: 10px; }
-                  .details-content { color: #666; font-size: 13px; }
-                </style>
-              </head>
-              <body>
-                <div class="container">
-                  <div class="header">
-                    <h1>🔬 Regression Test Execution Report</h1>
-                  </div>
-                  
-                  <div class="content">
-                    <div class="summary">
-                      <div class="summary-row">
-                        <span class="label">Test Suite File:</span>
-                        <span class="value">${{ github.event.inputs.test_xml_file }}</span>
-                      </div>
-                      <div class="summary-row">
-                        <span class="label">Execution Date & Time:</span>
-                        <span class="value">${{ steps.report_data.outputs.RUN_DATE }}</span>
-                      </div>
-                      <div class="summary-row">
-                        <span class="label">Repository:</span>
-                        <span class="value">${{ github.repository }}</span>
-                      </div>
-                      <div class="summary-row">
-                        <span class="label">Branch:</span>
-                        <span class="value">${{ github.ref_name }}</span>
-                      </div>
-                      <div class="summary-row">
-                        <span class="label">Commit SHA:</span>
-                        <span class="value">${{ github.sha }}</span>
-                      </div>
-                    </div>
-
-                    <h2 style="color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px;">Test Execution Summary</h2>
-                    
-                    <div style="margin: 20px 0;">
-                      <div class="metric">
-                        <div class="metric-value">${{ steps.report_data.outputs.TOTAL_TESTS }}</div>
-                        <div class="metric-label">Total Tests</div>
-                      </div>
-                      <div class="metric">
-                        <div class="metric-value status-pass">${{ steps.report_data.outputs.PASSED_TESTS }}</div>
-                        <div class="metric-label">Passed</div>
-                      </div>
-                      <div class="metric">
-                        <div class="metric-value status-fail">${{ steps.report_data.outputs.FAILED_TESTS }}</div>
-                        <div class="metric-label">Failed</div>
-                      </div>
-                      <div class="metric">
-                        <div class="metric-value status-skip">${{ steps.report_data.outputs.SKIPPED_TESTS }}</div>
-                        <div class="metric-label">Skipped</div>
-                      </div>
-                    </div>
-
-                    <div class="details-section">
-                      <div class="details-title">📊 Test Execution Details:</div>
-                      <div class="details-content">
-                        <strong>Workflow Run:</strong> <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Click here to view full details</a><br>
-                        <strong>Test Framework:</strong> TestNG<br>
-                        <strong>Java Version:</strong> 17<br>
-                        <strong>Operating System:</strong> Ubuntu Latest<br>
-                        <strong>Build Tool:</strong> Apache Maven<br>
-                      </div>
-                    </div>
-
-                    <div class="details-section">
-                      <div class="details-title">📈 Allure Report on GitHub Pages:</div>
-                      <div class="details-content">
-                        View the comprehensive Allure test report: <a href="${{ github.server_url }}/${{ github.repository }}/deployments/activity_log?environment=github-pages">Allure Report - Latest</a><br>
-                        <strong>Report Location:</strong> GitHub Pages (gh-pages branch)<br>
-                        <strong>Retention:</strong> Last 5 test runs maintained
-                      </div>
-                    </div>
-
-                    <div class="details-section">
-                      <div class="details-title">📦 Artifacts:</div>
-                      <div class="details-content">
-                        Raw Allure results available in artifacts: <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Download artifacts</a>
-                      </div>
-                    </div>
-
-                  </div>
-                  
-                  <div class="footer">
-                    <p>This is an automated notification from GitHub Actions. Please do not reply to this email.</p>
-                    <p>For more information, visit: <a href="${{ github.server_url }}/${{ github.repository }}">${{ github.repository }}</a></p>
-                  </div>
-                </div>
-              </body>
-            </html>
+          to: harshvegada1997@gmail.com,write2technocredits@gmail.com
+          from: harshhpatel07@gmail.com
+          html_body: true
+          body: ${{ env.EMAIL_CONTENT }}
 
