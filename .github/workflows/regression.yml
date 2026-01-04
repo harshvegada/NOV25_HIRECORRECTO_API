@@ -84,7 +84,7 @@ jobs:
         run: |
           # Parse test results
           if [ -f "target/surefire-reports/testng-results.xml" ]; then
-            TOTAL_TESTS=$(grep -o 'tests="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*' || echo "0")
+            TOTAL_TESTS=$(grep -o 'total="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*' || echo "0")
             PASSED_TESTS=$(grep -o 'passed="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*' || echo "0")
             FAILED_TESTS=$(grep -o 'failed="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*' || echo "0")
             SKIPPED_TESTS=$(grep -o 'skipped="[0-9]*"' target/surefire-reports/testng-results.xml | head -1 | grep -o '[0-9]*' || echo "0")
